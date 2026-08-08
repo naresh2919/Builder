@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Draftline — Resume & CV Builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+:root{
+  --ink:#1B2430;
+  --paper:#F4F5F1;
+  --sheet:#FFFFFF;
+  --signal:#2F6F5E;
+  --signal-dim:#e7efec;
+  --amber:#C98A3D;
+  --slate:#5C6672;
+  --border:#D8DAD3;
+  --toolbar:#1B2430;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;height:100%;background:var(--paper);font-family:'Inter',sans-serif;color:var(--ink);}
+button{font-family:inherit;cursor:pointer;}
+input,textarea{font-family:inherit;}
+
+/* ---------- App shell ---------- */
+.app{display:flex;flex-direction:column;height:100vh;}
+
+.toolbar{
+  background:var(--toolbar);color:#fff;
+  display:flex;align-items:center;gap:20px;
+  padding:12px 20px;flex-wrap:wrap;
+  border-bottom:1px solid #000;
+}
+.brand{
+  font-family:'Fraunces',serif;font-size:19px;font-weight:600;
+  letter-spacing:.2px;margin-right:auto;display:flex;align-items:baseline;gap:8px;
+}
+.brand .mark{color:var(--amber);font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:500;letter-spacing:1px;border:1px solid rgba(255,255,255,.25);padding:2px 6px;border-radius:3px;}
+
+.mode-toggle{display:flex;background:rgba(255,255,255,.08);border-radius:8px;padding:3px;gap:2px;}
+.mode-toggle button{
+  border:none;background:transparent;color:rgba(255,255,255,.65);
+  padding:7px 14px;border-radius:6px;font-size:13px;font-weight:600;
+  transition:.15s;
+}
+.mode-toggle button.active{background:var(--signal);color:#fff;}
+
+.tpl-btn, .dl-btn{
+  border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);
+  color:#fff;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;
+  display:flex;align-items:center;gap:6px;
+}
+.tpl-btn:hover{background:rgba(255,255,255,.14);}
+.dl-btn{background:var(--amber);border-color:var(--amber);color:#241505;}
+.dl-btn:hover{filter:brightness(1.08);}
+
+/* ---------- Main split ---------- */
+.main{flex:1;display:grid;grid-template-columns:minmax(300px,420px) 1fr;overflow:hidden;}
+@media (max-width:860px){.main{grid-template-columns:1fr;overflow:auto;}}
+
+.editor{
+  overflow-y:auto;padding:22px 22px 80px;border-right:1px solid var(--border);
+  background:var(--paper);
+}
+.editor::-webkit-scrollbar{width:8px;}
+.editor::-webkit-scrollbar-thumb{background:#c7cbc1;border-radius:4px;}
+
+.eyebrow{
+  font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:1.5px;
+  text-transform:uppercase;color:var(--signal);font-weight:500;margin:26px 0 10px;
+}
+.eyebrow:first-child{margin-top:0;}
+.field{margin-bottom:10px;}
+.field label{display:block;font-size:11.5px;color:var(--slate);margin-bottom:4px;font-weight:500;}
+.field input, .field textarea{
+  width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;
+  font-size:13.5px;background:var(--sheet);color:var(--ink);
+}
+.field input:focus, .field textarea:focus{outline:2px solid var(--signal);outline-offset:1px;border-color:var(--signal);}
+.field textarea{resize:vertical;min-height:56px;line-height:1.45;}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+
+.entry-card{
+  border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;background:var(--sheet);
+  position:relative;
+}
+.entry-card .rm{
+  position:absolute;top:8px;right:8px;background:none;border:none;color:#b5453c;
+  font-size:12px;font-weight:700;padding:2px 6px;border-radius:4px;
+}
+.entry-card .rm:hover{background:#fbeceb;}
+.add-btn{
+  width:100%;border:1.5px dashed var(--border);background:transparent;color:var(--signal);
+  padding:9px;border-radius:8px;font-size:13px;font-weight:600;margin-top:2px;
+}
+.add-btn:hover{background:var(--signal-dim);border-color:var(--signal);}
+
+.skills-hint{font-size:11px;color:var(--slate);margin-top:2px;}
+
+/* ---------- Preview pane ---------- */
+.preview-pane{
+  overflow:auto;background:var(--paper);
+  display:flex;gap:0;justify-content:center;padding:36px 24px 60px;
+}
+.ruler{
+  width:22px;flex:none;position:sticky;top:36px;height:1123px;
+  background:repeating-linear-gradient(to bottom, var(--slate) 0 1px, transparent 1px 10px);
+  background-size:1px 10px;background-repeat:repeat-y;background-position:6px 0;
+  opacity:.35;display:flex;flex-direction:column;align-items:flex-start;
+  font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--slate);
+}
+@media (max-width:860px){.ruler{display:none;}}
+
+.sheet-wrap{flex:none;filter:drop-shadow(0 10px 30px rgba(27,36,48,.18)) drop-shadow(0 2px 6px rgba(27,36,48,.08));}
+#resume-preview{
+  width:794px;min-height:1123px;background:var(--sheet);padding:0;
+  font-family:'Inter',sans-serif;color:var(--ink);
+}
+
+/* ===== Document internal layout (shared markup, per-template skin) ===== */
+.doc{display:grid;grid-template-columns:1fr;min-height:1123px;}
+.doc-header{padding:40px 48px 18px;}
+.doc-name{font-family:'Fraunces',serif;font-size:34px;font-weight:700;margin:0 0 4px;letter-spacing:.2px;}
+.doc-role{font-size:14px;color:var(--signal);font-weight:600;margin-bottom:10px;}
+.doc-contact{display:flex;flex-wrap:wrap;gap:10px 16px;font-size:11.5px;color:var(--slate);font-family:'IBM Plex Mono',monospace;}
+
+.doc-body{display:grid;grid-template-columns:1fr;padding:0 48px 40px;gap:22px;}
+.sec{margin-bottom:2px;}
+.sec-title{
+  font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:1.8px;text-transform:uppercase;
+  color:var(--signal);font-weight:600;border-bottom:1px solid var(--border);padding-bottom:5px;margin-bottom:10px;
+}
+.sec p{font-size:12.8px;line-height:1.55;margin:0 0 8px;color:#333;}
+.item{margin-bottom:12px;}
+.item-top{display:flex;justify-content:space-between;gap:10px;font-size:13px;}
+.item-title{font-weight:700;}
+.item-sub{font-size:12px;color:var(--slate);margin-top:1px;}
+.item-date{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--slate);white-space:nowrap;}
+.item ul{margin:5px 0 0;padding-left:16px;}
+.item li{font-size:12.3px;line-height:1.5;margin-bottom:2px;color:#333;}
+.tags{display:flex;flex-wrap:wrap;gap:6px;}
+.tag{
+  font-size:11px;padding:3px 9px;border-radius:20px;background:var(--signal-dim);color:var(--signal);
+  font-weight:600;font-family:'IBM Plex Mono',monospace;
+}
+
+/* ---- Template: minimal (default) ---- */
+.doc.tpl-minimal .doc-header{border-bottom:2px solid var(--ink);}
+.doc.tpl-minimal .doc-body{grid-template-columns:1fr;}
+
+/* ---- Template: modern (sidebar) ---- */
+.doc.tpl-modern{grid-template-columns:1fr;}
+.doc.tpl-modern .doc-header{background:var(--ink);color:#fff;padding:36px 48px;}
+.doc.tpl-modern .doc-role{color:var(--amber);}
+.doc.tpl-modern .doc-contact{color:rgba(255,255,255,.75);}
+.doc.tpl-modern .doc-body{grid-template-columns:210px 1fr;padding:0;}
+.doc.tpl-modern .aside{background:#EDEFEA;padding:28px 22px;}
+.doc.tpl-modern .main{padding:28px 40px 40px;}
+.doc.tpl-modern .sec-title{color:var(--ink);border-bottom-color:#c7ccc0;}
+.doc.tpl-modern .aside .tag{background:#fff;}
+
+/* ---- Template: bold ---- */
+.doc.tpl-bold .doc-header{background:var(--signal);color:#fff;padding:44px 48px;}
+.doc.tpl-bold .doc-name{font-size:40px;}
+.doc.tpl-bold .doc-role{color:var(--amber);font-size:15px;}
+.doc.tpl-bold .doc-contact{color:rgba(255,255,255,.85);}
+.doc.tpl-bold .doc-body{grid-template-columns:1fr;padding:32px 48px 40px;}
+.doc.tpl-bold .sec-title{color:var(--ink);border-bottom:2px solid var(--signal);}
+.doc.tpl-bold .tag{background:var(--ink);color:#fff;}
+
+/* ---- Template: ATS compact (plain, parser-friendly) ---- */
+.doc.tpl-ats{}
+.doc.tpl-ats .doc-header{padding:30px 44px 12px;border-bottom:1px solid #000;}
+.doc.tpl-ats .doc-name{font-family:'Inter',sans-serif;font-size:24px;font-weight:700;}
+.doc.tpl-ats .doc-role{color:#000;font-weight:600;font-size:12.5px;}
+.doc.tpl-ats .doc-contact{font-family:'Inter',sans-serif;color:#333;}
+.doc.tpl-ats .doc-body{padding:0 44px 34px;gap:14px;}
+.doc.tpl-ats .sec-title{font-family:'Inter',sans-serif;color:#000;letter-spacing:.5px;border-bottom:1px solid #000;}
+.doc.tpl-ats .tag{background:none;color:#000;border:1px solid #999;border-radius:3px;}
+
+/* NOTE: the old ".doc:not(.tpl-modern) .aside{display:contents;}" rules that
+   lived here were removed as part of the PDF-export fix — see explanation
+   in the JS render() function below. Non-modern templates no longer wrap
+   their sections in an .aside div at all, so these overrides are obsolete. */
+
+/* ---------- Template picker modal ---------- */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(27,36,48,.55);display:none;
+  align-items:center;justify-content:center;z-index:50;padding:20px;
+}
+.modal-overlay.open{display:flex;}
+.modal{
+  background:var(--sheet);border-radius:14px;padding:22px;max-width:640px;width:100%;
+  box-shadow:0 20px 50px rgba(0,0,0,.3);
+}
+.modal h3{font-family:'Fraunces',serif;margin:0 0 4px;font-size:20px;}
+.modal p.sub{color:var(--slate);font-size:12.5px;margin:0 0 18px;}
+.tpl-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;}
+.tpl-card{
+  border:2px solid var(--border);border-radius:10px;padding:14px;text-align:left;background:var(--paper);
+}
+.tpl-card.selected{border-color:var(--signal);background:var(--signal-dim);}
+.tpl-card .swatch{height:52px;border-radius:6px;margin-bottom:10px;display:flex;overflow:hidden;}
+.tpl-card b{font-size:13px;display:block;margin-bottom:2px;}
+.tpl-card span{font-size:11.5px;color:var(--slate);}
+.modal-close{margin-top:18px;width:100%;background:var(--ink);color:#fff;border:none;padding:10px;border-radius:8px;font-weight:600;font-size:13px;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="toolbar">
+    <div class="brand"><span>Draftline</span><span class="mark">BUILD</span></div>
+
+    <div class="mode-toggle" role="tablist" aria-label="Document type">
+      <button id="mode-resume" class="active">Resume</button>
+      <button id="mode-cv">CV</button>
+    </div>
+
+    <button class="tpl-btn" id="open-tpl">☐ Template: <span id="tpl-label">Minimal</span></button>
+    <button class="dl-btn" id="download-btn">⬇ Download PDF</button>
+  </div>
+
+  <div class="main">
+    <!-- ============ EDITOR ============ -->
+    <div class="editor" id="editor">
+
+      <div class="eyebrow">Header</div>
+      <div class="field"><label>Full name</label><input id="f-name" value="Nareshkrishnan L"></div>
+      <div class="field"><label>Target role / title</label><input id="f-role" value="Full Stack Java Developer"></div>
+      <div class="row2">
+        <div class="field"><label>Email</label><input id="f-email" title="Email address" value="naresh2919@example.com"></div>
+        <div class="field"><label>Phone</label><input id="f-phone" title="Phone number" value="+91 00000 00000"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Location</label><input id="f-location" value="Madurai, Tamil Nadu"></div>
+        <div class="field"><label>LinkedIn / GitHub</label><input id="f-links" value="linkedin.com/in/naresh2919 · github.com/naresh2919"></div>
+      </div>
+
+      <div class="eyebrow">Summary</div>
+      <div class="field"><textarea id="f-summary" style="min-height:80px">B.Tech Computer Science graduate with hands-on experience across UI/UX design, AWS cloud development, and full-stack Java. Comfortable moving between design and engineering to ship complete products end to end.</textarea></div>
+
+      <div class="eyebrow">Skills</div>
+      <div class="field"><input id="f-skills" value="Java, Python, Flask, MongoDB, SQL, HTML/CSS/JS, AWS, Figma"></div>
+      <div class="skills-hint">Comma-separated — shown as tags on the document.</div>
+
+      <div class="eyebrow">Experience</div>
+      <div id="exp-list"></div>
+      <button class="add-btn" data-add="exp">+ Add experience</button>
+
+      <div class="eyebrow">Projects</div>
+      <div id="proj-list"></div>
+      <button class="add-btn" data-add="proj">+ Add project</button>
+
+      <div class="eyebrow">Education</div>
+      <div id="edu-list"></div>
+      <button class="add-btn" data-add="edu">+ Add education</button>
+
+      <div class="eyebrow">Certifications</div>
+      <div id="cert-list"></div>
+      <button class="add-btn" data-add="cert">+ Add certification</button>
+
+      <div id="cv-only-fields" style="display:none">
+        <div class="eyebrow">Publications</div>
+        <div id="pub-list"></div>
+        <button class="add-btn" data-add="pub">+ Add publication</button>
+
+        <div class="eyebrow">Awards & Honors</div>
+        <div id="award-list"></div>
+        <button class="add-btn" data-add="award">+ Add award</button>
+
+        <div class="eyebrow">Languages</div>
+        <div id="lang-list"></div>
+        <button class="add-btn" data-add="lang">+ Add language</button>
+
+        <div class="eyebrow">References</div>
+        <div class="field"><textarea id="f-refs" placeholder="e.g. Available on request, or list name / title / contact per line.">Available on request.</textarea></div>
+      </div>
+
+    </div>
+
+    <!-- ============ PREVIEW ============ -->
+    <div class="preview-pane">
+      <div class="ruler"></div>
+      <div class="sheet-wrap">
+        <div id="resume-preview"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Template picker -->
+<div class="modal-overlay" id="tpl-overlay">
+  <div class="modal">
+    <h3>Choose a template</h3>
+    <p class="sub">Switch anytime — your content carries over automatically.</p>
+    <div class="tpl-grid" id="tpl-grid"></div>
+    <button class="modal-close" id="close-modal">Close</button>
+  </div>
+</div>
+
+<script>
+/* ---------------- state ---------------- */
+let mode = 'resume'; // resume | cv
+let template = 'minimal'; // minimal | modern | bold | ats
+
+const templates = [
+  {id:'minimal', name:'Minimal', desc:'Clean single column, serif name', colors:['#1B2430','#FAF9F5','#2F6F5E']},
+  {id:'modern',  name:'Modern',  desc:'Dark header, sidebar skills', colors:['#1B2430','#EDEFEA','#C98A3D']},
+  {id:'bold',    name:'Bold',    desc:'Full-color statement header', colors:['#2F6F5E','#FFFFFF','#C98A3D']},
+  {id:'ats',     name:'ATS Compact', desc:'Plain, parser-friendly', colors:['#000000','#FFFFFF','#666666']},
+];
+
+let data = {
+  exp: [
+    {role:'Freelance Full Stack Developer', company:'Zenvyra Technologys', dates:'2025 — Present',
+     bullets:'Built client web applications end to end using Flask, MongoDB and vanilla JS.\nDesigned UI/UX for small business sites and delivered production-ready builds.'},
+  ],
+  proj: [
+    {name:'Interactive Resume Builder', tech:'HTML, CSS, JS',
+     desc:'Single-file resume builder with live preview, multiple templates and full editing.'},
+  ],
+  edu: [
+    {degree:'B.Tech, Computer Science', school:'Sethu Institute of Technology', dates:'2021 — 2025', detail:''},
+    {degree:'Diploma, Mechanical Engineering', school:'Kalvi Institute, Madurai', dates:'', detail:''},
+  ],
+  cert: [
+    {name:'Full Stack Java', issuer:'', year:''},
+    {name:'Core Java', issuer:'', year:''},
+    {name:'Front End Development', issuer:'', year:''},
+  ],
+  pub: [],
+  award: [],
+  lang: [{name:'English', level:'Professional'}, {name:'Tamil', level:'Native'}],
+};
+
+/* ---------------- helpers ---------------- */
+function el(html){ const t=document.createElement('template'); t.innerHTML=html.trim(); return t.content.firstChild; }
+function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function linesToLi(text){
+  return (text||'').split('\n').map(l=>l.trim()).filter(Boolean).map(l=>`<li>${esc(l)}</li>`).join('');
+}
+
+/* ---------------- entry-card renderers (editor side) ---------------- */
+const listConfigs = {
+  exp:  {container:'exp-list',  fields:[['role','Role'],['company','Company'],['dates','Dates']], area:['bullets','Bullets (one per line)']},
+  proj: {container:'proj-list', fields:[['name','Project name'],['tech','Tech used']], area:['desc','Description']},
+  edu:  {container:'edu-list',  fields:[['degree','Degree'],['school','Institution'],['dates','Dates']], area:['detail','Detail (optional)']},
+  cert: {container:'cert-list', fields:[['name','Name'],['issuer','Issuer'],['year','Year']]},
+  pub:  {container:'pub-list',  fields:[['title','Title'],['venue','Venue'],['year','Year']]},
+  award:{container:'award-list',fields:[['title','Title'],['year','Year']]},
+  lang: {container:'lang-list', fields:[['name','Language'],['level','Level']]},
+};
+
+function renderEditorList(key){
+  const cfg = listConfigs[key];
+  const container = document.getElementById(cfg.container);
+  container.innerHTML = '';
+  data[key].forEach((item, idx) => {
+    const card = el(`<div class="entry-card"><button class="rm" title="Remove">✕</button></div>`);
+    cfg.fields.forEach(([fkey, label]) => {
+      const field = el(`<div class="field"><label>${label}</label><input value="${esc(item[fkey])}"></div>`);
+      const input = field.querySelector('input');
+      input.addEventListener('input', () => { item[fkey] = input.value; render(); });
+      card.appendChild(field);
+    });
+    if (cfg.area) {
+      const [akey, alabel] = cfg.area;
+      const field = el(`<div class="field"><label>${alabel}</label><textarea>${esc(item[akey])}</textarea></div>`);
+      const ta = field.querySelector('textarea');
+      ta.addEventListener('input', () => { item[akey] = ta.value; render(); });
+      card.appendChild(field);
+    }
+    card.querySelector('.rm').addEventListener('click', () => {
+      data[key].splice(idx,1); renderEditorList(key); render();
+    });
+    container.appendChild(card);
+  });
+}
+
+function addEntry(key){
+  const blank = {};
+  listConfigs[key].fields.forEach(([fkey])=> blank[fkey]='');
+  if(listConfigs[key].area) blank[listConfigs[key].area[0]] = '';
+  data[key].push(blank);
+  renderEditorList(key);
+  render();
+}
+
+document.querySelectorAll('[data-add]').forEach(btn=>{
+  btn.addEventListener('click', ()=> addEntry(btn.dataset.add));
+});
+
+/* ---------------- top-level fields ---------------- */
+const simpleIds = ['f-name','f-role','f-email','f-phone','f-location','f-links','f-summary','f-skills','f-refs'];
+simpleIds.forEach(id=>{
+  const node = document.getElementById(id);
+  if(node) node.addEventListener('input', render);
+});
+
+/* ---------------- mode toggle ---------------- */
+document.getElementById('mode-resume').addEventListener('click', ()=> setMode('resume'));
+document.getElementById('mode-cv').addEventListener('click', ()=> setMode('cv'));
+function setMode(m){
+  mode = m;
+  document.getElementById('mode-resume').classList.toggle('active', m==='resume');
+  document.getElementById('mode-cv').classList.toggle('active', m==='cv');
+  document.getElementById('cv-only-fields').style.display = (m==='cv') ? 'block' : 'none';
+  render();
+}
+
+/* ---------------- template picker ---------------- */
+const tplGrid = document.getElementById('tpl-grid');
+templates.forEach(t=>{
+  const card = el(`
+    <button class="tpl-card" data-id="${t.id}">
+      <div class="swatch">${t.colors.map(c=>`<div style="flex:1;background:${c}"></div>`).join('')}</div>
+      <b>${t.name}</b><span>${t.desc}</span>
+    </button>`);
+  card.addEventListener('click', ()=>{
+    template = t.id;
+    document.getElementById('tpl-label').textContent = t.name;
+    document.querySelectorAll('.tpl-card').forEach(c=>c.classList.remove('selected'));
+    card.classList.add('selected');
+    render();
+  });
+  tplGrid.appendChild(card);
+});
+document.getElementById('open-tpl').addEventListener('click', ()=>{
+  document.getElementById('tpl-overlay').classList.add('open');
+  document.querySelectorAll('.tpl-card').forEach(c=> c.classList.toggle('selected', c.dataset.id===template));
+});
+document.getElementById('close-modal').addEventListener('click', ()=>{
+  document.getElementById('tpl-overlay').classList.remove('open');
+});
+document.getElementById('tpl-overlay').addEventListener('click', (e)=>{
+  if(e.target.id==='tpl-overlay') document.getElementById('tpl-overlay').classList.remove('open');
+});
+
+/* ---------------- main render ---------------- */
+function render(){
+  const name = document.getElementById('f-name').value;
+  const role = document.getElementById('f-role').value;
+  const email = document.getElementById('f-email').value;
+  const phone = document.getElementById('f-phone').value;
+  const location = document.getElementById('f-location').value;
+  const links = document.getElementById('f-links').value;
+  const summary = document.getElementById('f-summary').value;
+  const skills = document.getElementById('f-skills').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const refs = document.getElementById('f-refs') ? document.getElementById('f-refs').value : '';
+
+  const sidebarSkills = `
+    <div class="sec">
+      <div class="sec-title">Skills</div>
+      <div class="tags">${skills.map(s=>`<span class="tag">${esc(s)}</span>`).join('')}</div>
+    </div>`;
+
+  const sidebarContactModern = `
+    <div class="sec">
+      <div class="sec-title">Contact</div>
+      <p style="font-family:'IBM Plex Mono',monospace;font-size:11px;line-height:1.8;">
+      ${esc(email)}<br>${esc(phone)}<br>${esc(location)}<br>${esc(links)}</p>
+    </div>`;
+
+  const eduHtml = data.edu.map(e=>`
+    <div class="item">
+      <div class="item-top"><span class="item-title">${esc(e.degree)}</span><span class="item-date">${esc(e.dates)}</span></div>
+      <div class="item-sub">${esc(e.school)}</div>
+      ${e.detail?`<p>${esc(e.detail)}</p>`:''}
+    </div>`).join('');
+
+  const expHtml = data.exp.map(x=>`
+    <div class="item">
+      <div class="item-top"><span class="item-title">${esc(x.role)} ${x.company?'· '+esc(x.company):''}</span><span class="item-date">${esc(x.dates)}</span></div>
+      <ul>${linesToLi(x.bullets)}</ul>
+    </div>`).join('');
+
+  const projHtml = data.proj.map(p=>`
+    <div class="item">
+      <div class="item-top"><span class="item-title">${esc(p.name)}</span><span class="item-date">${esc(p.tech)}</span></div>
+      <p>${esc(p.desc)}</p>
+    </div>`).join('');
+
+  const certHtml = data.cert.map(c=>`
+    <div class="item" style="margin-bottom:6px;">
+      <div class="item-top"><span class="item-title" style="font-size:12.5px;">${esc(c.name)}</span><span class="item-date">${esc(c.year)}</span></div>
+      ${c.issuer?`<div class="item-sub">${esc(c.issuer)}</div>`:''}
+    </div>`).join('');
+
+  let cvExtra = '';
+  if(mode==='cv'){
+    if(data.pub.length){
+      cvExtra += `<div class="sec"><div class="sec-title">Publications</div>${
+        data.pub.map(p=>`<div class="item"><div class="item-top"><span class="item-title">${esc(p.title)}</span><span class="item-date">${esc(p.year)}</span></div>${p.venue?`<div class="item-sub">${esc(p.venue)}</div>`:''}</div>`).join('')
+      }</div>`;
+    }
+    if(data.award.length){
+      cvExtra += `<div class="sec"><div class="sec-title">Awards & Honors</div>${
+        data.award.map(a=>`<div class="item"><div class="item-top"><span class="item-title">${esc(a.title)}</span><span class="item-date">${esc(a.year)}</span></div></div>`).join('')
+      }</div>`;
+    }
+    if(data.lang.length){
+      cvExtra += `<div class="sec"><div class="sec-title">Languages</div><div class="tags">${
+        data.lang.map(l=>`<span class="tag">${esc(l.name)}${l.level?' · '+esc(l.level):''}</span>`).join('')
+      }</div></div>`;
+    }
+    if(refs.trim()){
+      cvExtra += `<div class="sec"><div class="sec-title">References</div><p>${esc(refs)}</p></div>`;
+    }
+  }
+
+  const mainColumn = `
+    <div class="sec"><div class="sec-title">Summary</div><p>${esc(summary)}</p></div>
+    ${data.exp.length?`<div class="sec"><div class="sec-title">Experience</div>${expHtml}</div>`:''}
+    ${data.proj.length?`<div class="sec"><div class="sec-title">Projects</div>${projHtml}</div>`:''}
+    <div class="sec"><div class="sec-title">Education</div>${eduHtml}</div>
+    ${data.cert.length?`<div class="sec"><div class="sec-title">Certifications</div>${certHtml}</div>`:''}
+    ${cvExtra}
+  `;
+
+  /* ============================================================
+     FIX: previously, non-modern templates wrapped their sections in
+       <div class="aside" style="display:contents">...</div>
+       <div class="main"  style="display:contents">...</div>
+     `display:contents` renders fine in a live browser (Chrome/Firefox
+     etc. just paint the children directly, ignoring the wrapper box),
+     but html2canvas — the library html2pdf.js uses to snapshot the
+     preview for PDF export — does not understand `display:contents`.
+     It can't compute a layout box for those wrapper elements, so their
+     children get skipped or mis-measured during capture. That's why
+     the on-screen preview looked complete but the downloaded PDF was
+     missing Summary/Experience/Projects/Education/etc.
+
+     The fix: for non-modern templates, stop wrapping the sections in
+     a throwaway div altogether — just concatenate the HTML strings
+     directly. `.doc-body` already has `grid-template-columns:1fr`
+     for these templates, so the sections still stack in one column
+     exactly as before, but now there's no display:contents box for
+     html2canvas to fail on.
+     ============================================================ */
+  let bodyHtml;
+  if(template==='modern'){
+    bodyHtml = `
+      <div class="aside">${sidebarContactModern}${sidebarSkills}</div>
+      <div class="main">${mainColumn}</div>`;
+  } else {
+    bodyHtml = `${sidebarSkills}${mainColumn}`;
+  }
+
+  const docHtml = `
+    <div class="doc tpl-${template}">
+      <div class="doc-header">
+        <div class="doc-name">${esc(name)}</div>
+        <div class="doc-role">${esc(role)}${mode==='cv'?' · Curriculum Vitae':''}</div>
+        <div class="doc-contact">
+          <span>${esc(email)}</span><span>${esc(phone)}</span><span>${esc(location)}</span><span>${esc(links)}</span>
+        </div>
+      </div>
+      <div class="doc-body">${bodyHtml}</div>
+    </div>`;
+
+  document.getElementById('resume-preview').innerHTML = docHtml;
+}
+
+/* ---------------- init ---------------- */
+Object.keys(listConfigs).forEach(renderEditorList);
+render();
+
+/* ---------------- download as PDF ---------------- */
+document.getElementById('download-btn').addEventListener('click', ()=>{
+  const name = document.getElementById('f-name').value.trim().replace(/\s+/g,'_') || 'resume';
+  const filename = `${name}_${mode === 'cv' ? 'CV' : 'Resume'}.pdf`;
+  const btn = document.getElementById('download-btn');
+  const original = btn.textContent;
+  btn.textContent = 'Preparing…';
+  btn.disabled = true;
+
+  /* Also wait for web fonts to finish loading before capture, so
+     html2canvas doesn't snapshot a frame where Fraunces/Inter/IBM
+     Plex Mono haven't swapped in yet (fallback-font flash). */
+  const opt = {
+    margin: 0,
+    filename,
+    image: { type:'jpeg', quality:0.98 },
+    html2canvas: { scale:2, useCORS:true },
+    jsPDF: { unit:'pt', format:'a4', orientation:'portrait' }
+  };
+
+  const runExport = () => {
+    html2pdf().set(opt).from(document.getElementById('resume-preview')).save().then(()=>{
+      btn.textContent = original; btn.disabled = false;
+    }).catch(()=>{
+      btn.textContent = original; btn.disabled = false;
+      alert('Download failed — please try again.');
+    });
+  };
+
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(runExport);
+  } else {
+    runExport();
+  }
+});
+</script>
+</body>
+</html>
